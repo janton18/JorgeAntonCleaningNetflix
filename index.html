@@ -1,0 +1,194 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>My Favourite Movies</title>
+    <!-- Swiper Styles -->
+    <link rel="stylesheet" href="https://unpkg.com/swiper/swiper-bundle.min.css" />
+    <style>
+        body {
+            --primary: #6200ee;
+            --secondary: #29b6f6;
+            margin: 0;
+            font-family: 'Roboto', sans-serif;
+            background: #f4f4f4;
+        }
+        button {
+            color: var(--primary);
+            background: white;
+            border: 1px solid var(--primary);
+            padding: 5px 10px;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+        button:hover {
+            background: var(--primary);
+            color: white;
+        }
+        #main {
+            padding: 10px;
+        }
+        .swiper-container {
+            height: 100vh;
+        }
+        .swiper-slide {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .movie {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 90%;
+            background: white;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .movie:hover {
+            transform: scale(1.02);
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease-in-out;
+        }
+        .movie img {
+            max-width: 50px;
+            margin-right: 10px;
+        }
+        #search-results, #favorites-list {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>My Favourite Movies</h1>
+    <!-- Swiper Container -->
+    <div class="swiper-container">
+        <div class="swiper-wrapper">
+            <!-- Home Section -->
+            <div class="swiper-slide" id="home-section">
+                <h2>Welcome</h2>
+                <button class="view-favorites">View Favorites</button>
+                <button class="search-movies">Search Movies</button>
+            </div>
+            <!-- Favorites Section -->
+            <div class="swiper-slide" id="favorites-section">
+                <h2>Your Favorites</h2>
+                <div id="favorites-list"></div>
+                <button class="drag-reorder">Enable Reorder</button>
+            </div>
+            <!-- Search Section -->
+            <div class="swiper-slide" id="search-section">
+                <h2>Search Movies</h2>
+                <input type="text" id="search-input" placeholder="Enter movie title">
+                <button class="search-api">Search</button>
+                <div id="search-results"></div>
+            </div>
+        </div>
+        <div class="swiper-pagination"></div>
+    </div>
+
+    <!-- Include Swiper JS -->
+    <script src="https://unpkg.com/swiper/swiper-bundle.min.js"></script>
+    <!-- Include Interact.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@interactjs/interactjs/index.min.js"></script>
+    <!-- Include AnimeJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+
+    <script>
+        // Initialize Swiper
+        const swiper = new Swiper('.swiper-container', {
+            direction: 'horizontal',
+            loop: false,
+            pagination: {
+                el: '.swiper-pagination',
+                clickable: true,
+            },
+        });
+
+        // Local Storage
+        const favorites = JSON.parse(localStorage.getItem('favorites')) || [];
+
+        // DOM Elements
+        const favoritesList = document.getElementById('favorites-list');
+        const searchResults = document.getElementById('search-results');
+        const searchInput = document.getElementById('search-input');
+
+        // Functions
+        const renderFavorites = () => {
+            favoritesList.innerHTML = favorites.map((movie, index) => `
+                <div class="movie" data-index="${index}">
+                    <img src="${movie.poster}" alt="Poster">
+                    <div>${movie.title}</div>
+                    <button class="remove-favorite" data-index="${index}">Remove</button>
+                </div>
+            `).join('');
+        };
+
+        const searchMovies = async () => {
+            const query = searchInput.value.trim();
+            if (!query) return alert('Please enter a movie title');
+            const response = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=9a60697712520978c710aa4977ea6288&query=${encodeURIComponent(query)}`);
+            const data = await response.json();
+            searchResults.innerHTML = data.results.map(movie => `
+                <div class="movie">
+                    <img src="https://image.tmdb.org/t/p/w200${movie.poster_path}" alt="Poster">
+                    <div>${movie.title}</div>
+                    <button class="add-to-favorites" data-id="${movie.id}" data-title="${movie.title}" data-poster="https://image.tmdb.org/t/p/w200${movie.poster_path}">Add to Favorites</button>
+                </div>
+            `).join('');
+        };
+
+        const addToFavorites = (id, title, poster) => {
+            if (favorites.some(movie => movie.id === id)) return alert('Movie already in favorites');
+            favorites.push({ id, title, poster });
+            localStorage.setItem('favorites', JSON.stringify(favorites));
+            renderFavorites();
+        };
+
+        const removeFromFavorites = (index) => {
+            favorites.splice(index, 1);
+            localStorage.setItem('favorites', JSON.stringify(favorites));
+            renderFavorites();
+        };
+
+        const enableDragReorder = () => {
+            interact('.movie').draggable({
+                listeners: {
+                    move(event) {
+                        const target = event.target;
+                        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+
+                        target.style.transform = `translate(${x}px, ${y}px)`;
+                        target.setAttribute('data-x', x);
+                        target.setAttribute('data-y', y);
+                    },
+                },
+            });
+        };
+
+        // Event Listeners
+        document.addEventListener('click', event => {
+            if (event.target.matches('.search-api')) searchMovies();
+            if (event.target.matches('.add-to-favorites')) {
+                const { id, title, poster } = event.target.dataset;
+                addToFavorites(id, title, poster);
+            }
+            if (event.target.matches('.remove-favorite')) {
+                const index = event.target.dataset.index;
+                removeFromFavorites(index);
+            }
+            if (event.target.matches('.drag-reorder')) enableDragReorder();
+        });
+
+        // Render Favorites on Load
+        renderFavorites();
+    </script>
+</body>
+</html>
